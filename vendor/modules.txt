@@ -438,7 +438,7 @@ github.com/munnerz/goautoneg
 github.com/oklog/ulid
 # github.com/onsi/ginkgo v1.16.4
 ## explicit; go 1.15
-# github.com/openshift/api v0.0.0-20221123130830-0dea1780a599
+# github.com/openshift/api v0.0.0-20221103085154-ea838af1820e => ../../chiragkyal/api
 ## explicit; go 1.18
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -1602,3 +1602,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.40.0
+# github.com/openshift/api => ../../chiragkyal/api

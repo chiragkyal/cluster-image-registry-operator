@@ -27,7 +27,7 @@ require (
 	github.com/gophercloud/utils v0.0.0-20221124081324-7bac6f5cdf99
 	github.com/goware/urlx v0.3.2
 	github.com/jongio/azidext/go/azidext v0.4.0
-	github.com/openshift/api v0.0.0-20221123130830-0dea1780a599
+	github.com/openshift/api v0.0.0-20221103085154-ea838af1820e
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
 	github.com/openshift/client-go v0.0.0-20221107163225-3335a34a1d24
 	github.com/openshift/library-go v0.0.0-20221124105218-301cb394fecc
@@ -166,3 +166,5 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.0
+
+replace github.com/openshift/api => ../../chiragkyal/api
