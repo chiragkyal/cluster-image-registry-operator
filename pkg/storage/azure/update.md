@@ -10,7 +10,7 @@ After going through the code flow of [cluster-image-registry-operator](https://
 * [CreateStorage()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L630) internally calls [assureStorageAccount()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L491) function, which makes sure to create a storage account. 
 **NOTE**: Regardless of the storage account name was provided by the user or was generated in runtime by us, this function always attempt to create one. 
 
-* [assureStorageAccount()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L491) finally calls the actual [createStorageAccount()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L157) function, which then calls the Azure's `storageAccountsClient.Create()` API passing all the required configurations to create a storage account. 
+* [assureStorageAccount()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L491) finally calls the actual [createStorageAccount()](https://github.com/openshift/cluster-image-registry-operator/blob/7e5dd5d9132d0908d750c2c65ac820fbd791f9d1/pkg/storage/azure/azure.go#L157) function, which then calls the Azure's `storageAccountsClient.Create()` API, passing all the required configurations to create a storage account. 
 
 * The above API takes [AccountCreateParameters] object, where we can pass all the essential parameters for the creation. This object has the field **Tags** , which we potentially want to update.  
 
@@ -46,13 +46,37 @@ The azure userTags is available in the status sub resource of infrastructure CR.
 
 Now, the `infra` object initially gets created in CreateStorage() function and passed as argument to assureStorageAccount() function. So, `infra.Status.PlatformStatus.Azure.ResourceTags` filed can be accessed inside assureStorageAccount().
 
-A new map `tagset` of type `map[string]*string` can be created inside assureStorageAccount() function, which will hold all the userTags (if provided) and default `"kubernetes.io_cluster.${cluster_id}" = "owned"` tag.
+A new map named `tagset` of type `map[string]*string` can be created inside assureStorageAccount() function, which will hold all the userTags (if provided) and default `"kubernetes.io_cluster.${cluster_id}" = "owned"` tag.
 
 ```go
 // Code Snippet
+
+...
+...
+
+tagset := map[string]*string{
+    fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
+}
+
+if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil {
+    for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
+        tagset[tag.Key] = to.StringPtr(tag.Value)
+    }
+}
+
+...
+...
 ```
 
-Then, the final `tagset` will be passed as argument to createStorageAccount() function. The updated function definition would be
+Then, the final `tagset` will be passed as argument to createStorageAccount() function. 
+
+```go
+d.createStorageAccount(
+			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName, tagset,
+)
+```
+
+We need to update the function definition to pass a new parameter, and can be done like this :
 
 ```go
 func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location, cloudName string, tagset map[string]*string) error
@@ -76,5 +100,7 @@ storageAccountsClient.Create(
     },
 )
 ```
-The Azure API should takes care the rest to add tags to the storage resource.
+At last the Azure API should take care the rest to add the tags to the newly created storage resource.
+
+
 
