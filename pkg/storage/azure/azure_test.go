@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
+	"github.com/Azure/go-autorest/autorest/to"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -327,6 +328,82 @@ func TestConfigEnvWithUserKey(t *testing.T) {
 			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
 		}
 	}
+}
+
+func TestUserProvidedTags(t *testing.T) {
+	testCases := []struct {
+		name         string
+		userTags     []configv1.AzureResourceTag
+		expectedTags map[string]*string
+		infraName    string
+	}{
+		{
+			name:      "no user tags",
+			infraName: "some-infra",
+			expectedTags: map[string]*string{
+				"kubernetes.io_cluster.some-infra": to.StringPtr("owned"),
+			},
+		},
+		{
+			name:      "with user tags",
+			infraName: "test-infra",
+			userTags: []configv1.AzureResourceTag{
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+				{
+					Key:   "tag2",
+					Value: "value2",
+				},
+			},
+			expectedTags: map[string]*string{
+				"kubernetes.io_cluster.test-infra": to.StringPtr("owned"),
+				"tag1":                             to.StringPtr("value1"),
+				"tag2":                             to.StringPtr("value2"),
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// sender := mocks.NewSender()
+			// sender.AppendResponse(mocks.NewResponseWithStatus("not found", http.StatusNotFound))
+			// sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+
+			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
+
+			drv := NewDriver(context.Background(), storageConfig, nil)
+			drv.authorizer = autorest.NullAuthorizer{}
+			//drv.sender = sender
+
+			_, _, err := drv.assureStorageAccount(
+				&Azure{
+					SubscriptionID: "subscription-id",
+					ResourceGroup:  "resource-group",
+				},
+				&configv1.Infrastructure{
+					Status: configv1.InfrastructureStatus{
+						InfrastructureName: tt.infraName,
+						PlatformStatus: &configv1.PlatformStatus{
+							Type: configv1.AzurePlatformType,
+							Azure: &configv1.AzurePlatformStatus{
+								ResourceTags: tt.userTags,
+							},
+						},
+					},
+				},
+			)
+
+			if err != nil {
+				t.Errorf("unexpected error %q", err)
+			}
+
+			// Compare tags from actual CRD retuned and expected tags
+
+		})
+	}
+
 }
 
 func Test_assureStorageAccount(t *testing.T) {

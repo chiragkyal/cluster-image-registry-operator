@@ -525,12 +525,9 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 		fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
 	}
 
-	// do we need this check because // regardless if the storage account name was provided by the user or we generated it,
-	// if it is available, we do attempt to create it.
-
 	// at this stage we are not keeping user tags in sync. as per enhancement proposal
 	// we only set user provided tags when we created the bucket.
-	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
+	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
 	if hasAzureStatus {
 		klog.Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
 		for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
