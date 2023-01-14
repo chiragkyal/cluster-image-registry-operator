@@ -352,7 +352,7 @@ func (s *sender) Do(r *http.Request) (*http.Response, error) {
 }
 
 func TestUserProvidedTags(t *testing.T) {
-	testCases := []struct {
+	for _, tt := range []struct {
 		name         string
 		userTags     []configv1.AzureResourceTag
 		expectedTags map[string]string
@@ -389,9 +389,7 @@ func TestUserProvidedTags(t *testing.T) {
 			},
 			responseBody: `{"nameAvailable":true}`,
 		},
-	}
-
-	for _, tt := range testCases {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &sender{
 				body: tt.responseBody,
