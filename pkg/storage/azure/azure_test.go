@@ -1,8 +1,12 @@
 package azure
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -12,7 +16,6 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
-	"github.com/Azure/go-autorest/autorest/to"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -330,22 +333,43 @@ func TestConfigEnvWithUserKey(t *testing.T) {
 	}
 }
 
+// custom sender for mocking
+type sender struct {
+	response []*http.Response
+	body     string
+}
+
+// Do implements the Sender interface for mocking
+// Do accepts the passed request and body, then appends the response and emits it.
+func (s *sender) Do(r *http.Request) (*http.Response, error) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Request:    r,
+		Body:       io.NopCloser(bytes.NewBufferString(s.body)),
+	}
+	s.response = append(s.response, resp)
+	return resp, nil
+}
+
 func TestUserProvidedTags(t *testing.T) {
 	testCases := []struct {
 		name         string
 		userTags     []configv1.AzureResourceTag
-		expectedTags map[string]*string
+		expectedTags map[string]string
 		infraName    string
+		responseBody string
 	}{
 		{
-			name:      "no user tags",
+			name:      "no-user-tags",
 			infraName: "some-infra",
-			expectedTags: map[string]*string{
-				"kubernetes.io_cluster.some-infra": to.StringPtr("owned"),
+			// only default tags
+			expectedTags: map[string]string{
+				"kubernetes.io_cluster.some-infra": "owned",
 			},
+			responseBody: `{"nameAvailable":true}`,
 		},
 		{
-			name:      "with user tags",
+			name:      "with-user-tags",
 			infraName: "test-infra",
 			userTags: []configv1.AzureResourceTag{
 				{
@@ -357,25 +381,27 @@ func TestUserProvidedTags(t *testing.T) {
 					Value: "value2",
 				},
 			},
-			expectedTags: map[string]*string{
-				"kubernetes.io_cluster.test-infra": to.StringPtr("owned"),
-				"tag1":                             to.StringPtr("value1"),
-				"tag2":                             to.StringPtr("value2"),
+			// default tags and user tags
+			expectedTags: map[string]string{
+				"kubernetes.io_cluster.test-infra": "owned",
+				"tag1":                             "value1",
+				"tag2":                             "value2",
 			},
+			responseBody: `{"nameAvailable":true}`,
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// sender := mocks.NewSender()
-			// sender.AppendResponse(mocks.NewResponseWithStatus("not found", http.StatusNotFound))
-			// sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+			sender := &sender{
+				body: tt.responseBody,
+			}
 
 			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
 
 			drv := NewDriver(context.Background(), storageConfig, nil)
 			drv.authorizer = autorest.NullAuthorizer{}
-			//drv.sender = sender
+			drv.sender = sender
 
 			_, _, err := drv.assureStorageAccount(
 				&Azure{
@@ -385,6 +411,7 @@ func TestUserProvidedTags(t *testing.T) {
 				&configv1.Infrastructure{
 					Status: configv1.InfrastructureStatus{
 						InfrastructureName: tt.infraName,
+						Platform:           configv1.AzurePlatformType,
 						PlatformStatus: &configv1.PlatformStatus{
 							Type: configv1.AzurePlatformType,
 							Azure: &configv1.AzurePlatformStatus{
@@ -399,11 +426,39 @@ func TestUserProvidedTags(t *testing.T) {
 				t.Errorf("unexpected error %q", err)
 			}
 
-			// Compare tags from actual CRD retuned and expected tags
+			for _, resp := range sender.response {
+				if resp != nil && resp.Request != nil && resp.Request.Body != nil {
 
+					reqBody := make(map[string]interface{})
+					if err := json.NewDecoder(resp.Request.Body).Decode(&reqBody); err != nil {
+						t.Fatalf("error decoding request: %q", err)
+					}
+
+					// ignore reqest without tags
+					if _, ok := reqBody["tags"]; ok {
+						if tags, ok := reqBody["tags"].(map[string]interface{}); ok {
+
+							// convert into correct type
+							receivedTags := make(map[string]string)
+							for k, v := range tags {
+								receivedTags[k] = fmt.Sprintf("%+v", v)
+							}
+
+							// compare the tags
+							if !reflect.DeepEqual(tt.expectedTags, receivedTags) {
+								t.Fatalf(
+									"expected tags %+v, received tags %+v",
+									tt.expectedTags, receivedTags,
+								)
+							}
+						} else {
+							t.Fatalf("unable to type asset tags field")
+						}
+					}
+				}
+			}
 		})
 	}
-
 }
 
 func Test_assureStorageAccount(t *testing.T) {
