@@ -432,7 +432,7 @@ func TestUserProvidedTags(t *testing.T) {
 						t.Fatalf("error decoding request: %q", err)
 					}
 
-					// ignore reqest without tags
+					// ignore request without tags
 					if _, ok := reqBody["tags"]; ok {
 						if tags, ok := reqBody["tags"].(map[string]interface{}); ok {
 

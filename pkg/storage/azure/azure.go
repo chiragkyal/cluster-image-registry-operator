@@ -519,7 +519,7 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 
 	// Tag the storage account with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
-	klog.Info("setting azure storage account tags")
+	klog.V(2).Info("setting azure storage account tags")
 
 	tagset := map[string]*string{
 		fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
@@ -529,13 +529,13 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 	// we only set user provided tags when we created the bucket.
 	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
 	if hasAzureStatus {
-		klog.Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
+		klog.V(5).Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
 		for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
-			klog.Infof("user has provided storage account tag: %s: %s", tag.Key, tag.Value)
+			klog.V(5).Infof("user has provided storage account tag: %s: %s", tag.Key, tag.Value)
 			tagset[tag.Key] = to.StringPtr(tag.Value)
 		}
 	}
-	klog.V(5).Infof("tagging storage accoun with tags: %+v", tagset)
+	klog.V(5).Infof("tagging storage account with tags: %+v", tagset)
 
 	// regardless if the storage account name was provided by the user or we generated it,
 	// if it is available, we do attempt to create it.
