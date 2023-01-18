@@ -419,10 +419,12 @@ func TestUserProvidedTags(t *testing.T) {
 					},
 				},
 			)
-
 			if err != nil {
 				t.Errorf("unexpected error %q", err)
 			}
+
+			// flag to confirm presence of tags
+			foundTags := false
 
 			for _, resp := range sender.response {
 				if resp != nil && resp.Request != nil && resp.Request.Body != nil {
@@ -434,6 +436,7 @@ func TestUserProvidedTags(t *testing.T) {
 
 					// ignore request without tags
 					if _, ok := reqBody["tags"]; ok {
+						foundTags = true
 						if tags, ok := reqBody["tags"].(map[string]interface{}); ok {
 
 							// convert into correct type
@@ -450,10 +453,13 @@ func TestUserProvidedTags(t *testing.T) {
 								)
 							}
 						} else {
-							t.Fatalf("unable to type asset tags field")
+							t.Fatal("unable to type asset tags field")
 						}
 					}
 				}
+			}
+			if !foundTags {
+				t.Fatal("no tags present in the request")
 			}
 		})
 	}
